@@ -4,7 +4,6 @@ let currentUser = null;
 const APIkey = "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";
 const sound_joinRoom = new Audio("../../sounds/sound_joinRoom.mp3");
 const sound_closeRoom = new Audio("../../sounds/sound_closeRoom.wav");
-
 // sidebar menu
 const body = document.querySelector('body'),
     sidebar = body.querySelector('nav'),
@@ -15,59 +14,21 @@ const body = document.querySelector('body'),
     searchBox = document.querySelector('.search-box input'),
     menuLinks = document.querySelector('.menu-links');
 
-toggle.addEventListener("click", () => {
-    sidebar.classList.toggle("close");
-})
-
-searchBtn.addEventListener("click", () => {
-    sidebar.classList.remove("close");
-})
-
-modeSwitch.addEventListener("click", () => {
-    body.classList.toggle("dark");
-
-    if (body.classList.contains("dark")) {
-        modeText.innerText = "Light mode";
-    } else {
-        modeText.innerText = "Dark mode";
-    }
-});
-
-const getUserByCookies = async () => {
-    const res = await fetch("http://localhost:3000/api/authentication", {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
+const fetchAPI = async (url, method, body = null) => {
+    const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : null
     });
-    const data = await res.json();
-    return data;
-}
-
-async function init() {
-    const data = await getUserByCookies();
-    const res = await fetch(`http://localhost:3000/api/users/${data.id}`, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
-    const user = await res.json();
-    currentUser = user;
-}
-
-const removeCookies = async () => {
-    const res = await fetch("http://localhost:3000/api/users/logout", {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    })
     return await res.json();
 }
 
+const removeCookies = async () => {
+    return await fetchAPI("http://localhost:3000/api/users/logout", "GET");
+}
+
 const logoutToMain = async () => {
-    if(Clerk.user) {
+    if (Clerk.user) {
         await Clerk.signOut();
     }
     const data = await removeCookies();
@@ -85,27 +46,8 @@ const logoutToMain = async () => {
 
 }
 
-const backToProfile = async () => {
-    window.location.href = "profile.html";
-}
-
-const reloadMessage = async () => {
-    await getAllMessageByIdRoom();
-}
-
-const hideMessage = async () => {
-    const chatbox = document.querySelector('.chat__conversation-board');
-    chatbox.innerHTML = "";
-}
-
 const saveMessage = async (message, userId, roomId, isLinkLocation, time) => {
-    await fetch("http://localhost:3000/api/message", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message, userId, roomId, isLinkLocation, time }),
-    });
+    await fetchAPI("http://localhost:3000/api/message", "POST", { message, userId, roomId, isLinkLocation, time });
 }
 
 const createDate = () => {
@@ -118,9 +60,141 @@ const createDate = () => {
     return date;
 }
 
-function scrollToBottom() {
-    var chatConversationBoard = document.querySelector('#chat__conversation-board');
-    chatConversationBoard.scrollTop = chatConversationBoard.scrollHeight;
+const queryString = location.search;
+const params = Qs.parse(queryString, { ignoreQueryPrefix: true });
+const room = params['id-room'];
+socket.emit("join-room", { idRoom: room });
+
+const setRoom = async () => {
+    const user = await fetchAPI("http://localhost:3000/api/authentication", "GET");
+    if (user.error) {
+        window.location.href = "index.html";
+        return;
+    }
+    const val = await fetchAPI(`http://localhost:3000/api/room/roomNumber/${room}`, "GET");
+    await fetchAPI(`http://localhost:3000/api/users/${user.id}`, "PUT", { roomId: val.id });
+    currentUser = await fetchAPI(`http://localhost:3000/api/users/${user.id}`, "GET");
+    const titleRoom = document.getElementById('number_room');
+    titleRoom.textContent = `Room ${val.roomNumber}`;
+}
+
+window.onload = async () => {
+    await setRoom();
+    await getAllMessageByIdRoom();
+    socket.emit("set-socketId", { idUser: currentUser.id });
+    socket.emit("get-all-user-in-room");
+};
+
+
+socket.on("new-user-join", async () => {
+    sound_joinRoom.play();
+})
+
+socket.on("allMember", (allUsersInRoom) => {
+    displayUserInRoom(allUsersInRoom);
+})
+
+socket.on("user_disconnect", async (allUsersInRoom) => {
+    sound_closeRoom.play();
+    displayUserInRoom(allUsersInRoom);
+})
+
+socket.on("send-message", async ({ message, infoUser }) => {
+    isLeft = infoUser.id !== currentUser.id;
+    const date = createDate();
+    chat(infoUser.avatar, infoUser.name, message, isLeft, date);
+});
+
+socket.on("send-location", async ({ lat, lng, infoUser }) => {
+    const linkLocation = `https://www.google.com/maps?q=${lat},${lng}`;
+    isLeft = infoUser.id !== currentUser.id;
+    const date = createDate();
+    chat(infoUser.avatar, infoUser.name, linkLocation, isLeft, date);
+});
+
+document
+    .getElementById("send-message")
+    .addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const message = document.getElementById("content-message").value;
+        if (message === "") return;
+        const date = createDate();
+        await saveMessage(message, currentUser.id, currentUser.roomId, date);
+        socket.emit("send-message", { message, infoUser: { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar } });
+        document.getElementById("content-message").value = "";
+    });
+
+document.getElementById("btn-location").addEventListener("click", async function (e) {
+    e.preventDefault();
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async function (position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const message = `https://www.google.com/maps?q=${lat},${lng}`;
+            const date = createDate();
+            await saveMessage(message, currentUser.id, currentUser.roomId, date);
+            socket.emit("send-location", { lat, lng, infoUser: { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar } });
+        });
+    } else {
+        swal({
+            title: "Error!",
+            text: "Your browser does not support Geolocation",
+            icon: "error",
+            button: "OK",
+        });
+    }
+});
+
+const displayUserInRoom = async (allUsersInRoom) => {
+    let ul = document.querySelector('.menu-links');
+    let s = "";
+    allUsersInRoom.forEach((data) => {
+        s += `<li class="nav-link view-profile" data-user-view="${currentUser.id}" data-user-id="${data.id}">
+                <a href="#">
+                    <img class='bx icon' src="${data.avatar}" alt="">
+                    <span class="text nav-text">${data.name}</span>
+                </a>
+            </li>`;
+    });
+    ul.innerHTML = s;
+
+    const viewProfiles = document.querySelectorAll('.view-profile');
+    viewProfiles.forEach((profile) => {
+        profile.addEventListener('click', function () {
+            const userId = this.dataset.userId;
+            const idUserView = this.dataset.userView;
+            window.location.href = `view_profile.html?userId=${userId}&&idUserView=${idUserView}`;
+        });
+    });
+}
+
+const getAllMessageByIdRoom = async () => {
+    const chatbox = document.querySelector('.chat__conversation-board');
+    chatbox.innerHTML = '';
+
+    // Lấy tất cả các tin nhắn từ phòng chat
+    fetchAPI(`http://localhost:3000/api/message/roomNumber/${currentUser.roomId}`, "GET").then((data) => {
+        data.forEach((m) => {
+            const date = new Date(m.createdAt);
+            const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const dateMessage = `${date.getFullYear()}-${month}-${date.getDate()} ${time}`;
+            chat(m.avatar, m.name, m.message, m.id !== currentUser.id, dateMessage);
+        });
+    });
+}
+
+const backToProfile = async () => {
+    window.location.href = "profile.html";
+}
+
+const reloadMessage = async () => {
+    await getAllMessageByIdRoom();
+}
+
+const hideMessage = async () => {
+    const chatbox = document.querySelector('.chat__conversation-board');
+    chatbox.innerHTML = "";
 }
 
 const chat = async (avatar, nameUser, message, isLeft, date) => {
@@ -175,81 +249,6 @@ const chat = async (avatar, nameUser, message, isLeft, date) => {
     scrollToBottom();
 }
 
-const queryString = location.search;
-const params = Qs.parse(queryString, { ignoreQueryPrefix: true });
-const room = params['id-room'];
-socket.emit("join-room", { idRoom: room });
-
-const getIdRoomByNumberRoom = async () => {
-    const data = await fetch(`http://localhost:3000/api/room/roomNumber/${room}`, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    })
-    return await data.json();
-}
-
-const setRoom = async () => {
-    await init();
-    const val = await getIdRoomByNumberRoom();
-    await fetch(`http://localhost:3000/api/users/${currentUser.id}`, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ roomId: val.id }),
-    });
-    const titleRoom = document.getElementById('number_room');
-    titleRoom.textContent = `Room ${val.roomNumber}`;
-}
-
-document
-    .getElementById("send-message")
-    .addEventListener("submit", async function (e) {
-        e.preventDefault();
-        const message = document.getElementById("content-message").value;
-        if (message === "") return;
-        const date = createDate();
-        await saveMessage(message, currentUser.id, currentUser.roomId, date);
-        socket.emit("send-message", { message, infoUser: { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar } });
-        document.getElementById("content-message").value = "";
-    });
-
-socket.on("send-message", async ({ message, infoUser }) => {
-    isLeft = infoUser.id !== currentUser.id;
-    const date = createDate();
-    chat(infoUser.avatar, infoUser.name, message, isLeft, date);
-});
-
-socket.on("send-location", async ({ lat, lng, infoUser }) => {
-    const linkLocation = `https://www.google.com/maps?q=${lat},${lng}`;
-    isLeft = infoUser.id !== currentUser.id;
-    const date = createDate();
-    chat(infoUser.avatar, infoUser.name, linkLocation, isLeft, date);
-});
-
-document.getElementById("btn-location").addEventListener("click", async function (e) {
-    e.preventDefault();
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async function (position) {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            const message = `https://www.google.com/maps?q=${lat},${lng}`;
-            const date = createDate();
-            await saveMessage(message, currentUser.id, currentUser.roomId, date);
-            socket.emit("send-location", { lat, lng, infoUser: { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar } });
-        });
-    } else {
-        swal({
-            title: "Error!",
-            text: "Your browser does not support Geolocation",
-            icon: "error",
-            button: "OK",
-        });
-    }
-});
-
 // chatbot
 $(function () {
     var INDEX = 0;
@@ -260,20 +259,6 @@ $(function () {
             return false;
         }
         generate_message(msg, 'self', currentUser.avatar);
-        //   var buttons = [
-        //       {
-        //         name: 'Existing User',
-        //         value: 'existing'
-        //       },
-        //       {
-        //         name: 'New User',
-        //         value: 'new'
-        //       }
-        //     ];
-        //   setTimeout(function() {      
-        //     generate_message(msg, 'user');  
-        //   }, 1000)
-
         generateAnswer(msg).then((data) => {
             if (data.status === 'success') {
                 generate_message(data.data.outputs[0].text, 'user', 'http://localhost:3000/public/images/chatbot-avatar/chatgpt.jpg');
@@ -316,18 +301,6 @@ $(function () {
     }
 
     function generate_button_message(msg, buttons) {
-        /* Buttons should be object array 
-          [
-            {
-              name: 'Existing User',
-              value: 'existing'
-            },
-            {
-              name: 'New User',
-              value: 'new'
-            }
-          ]
-        */
         INDEX++;
         var btn_obj = buttons.map(function (button) {
             return "              <li class=\"button\"><a href=\"javascript:;\" class=\"btn btn-primary chat-btn\" chat-value=\"" + button.value + "\">" + button.name + "<\/a><\/li>";
@@ -402,74 +375,6 @@ async function generateAnswer(question) {
     }
 }
 
-const displayUserInRoom = async (allUsersInRoom) => {
-    await init();
-    let ul = document.querySelector('.menu-links');
-    let s = "";
-    allUsersInRoom.forEach((data) => {
-        s += `<li class="nav-link view-profile" data-user-view="${currentUser.id}" data-user-id="${data.id}">
-                <a href="#">
-                    <img class='bx icon' src="${data.avatar}" alt="">
-                    <span class="text nav-text">${data.name}</span>
-                </a>
-            </li>`;
-    });
-    ul.innerHTML = s;
-
-    const viewProfiles = document.querySelectorAll('.view-profile');
-    viewProfiles.forEach((profile) => {
-        profile.addEventListener('click', function () {
-            const userId = this.dataset.userId;
-            const idUserView = this.dataset.userView;
-            window.location.href = `view_profile.html?userId=${userId}&&idUserView=${idUserView}`;
-        });
-    });
-}
-
-const fetchToGetMessage = async () => {
-    const res = await fetch(`http://localhost:3000/api/message/roomNumber/${currentUser.roomId}`, {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-        },
-    });
-    const data = await res.json();
-    return data;
-}
-
-const getAllMessageByIdRoom = async () => {
-    let allMessage = await fetchToGetMessage();
-    if (allMessage.length === 0) {
-        allMessage = await fetchToGetMessage();
-    };
-    allMessage.forEach((m) => {
-        isLeft = m.id !== currentUser.id;
-        const date = new Date(m.createdAt);
-        const hours = date.getHours().toString().padStart(2, '0');
-        const minutes = date.getMinutes().toString().padStart(2, '0');
-        const time = `${hours}:${minutes}`;
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const dateMessage = `${date.getFullYear()}-${month}-${date.getDate()} ${time}`;
-        chat(m.avatar, m.name, m.message, isLeft, dateMessage);
-    });
-}
-
-socket.on("new-user-join", async () => {
-    sound_joinRoom.play();
-    await setRoom();
-    socket.emit("set-socketId", { idUser: currentUser.id });
-    socket.emit("get-all-user-in-room");
-})
-
-socket.on("allMember", (allUsersInRoom) => {
-    displayUserInRoom(allUsersInRoom);
-})
-
-socket.on("user_disconnect", async (allUsersInRoom) => {
-    sound_closeRoom.play();
-    displayUserInRoom(allUsersInRoom);
-})
-
 searchBox.addEventListener('input', function () {
     const searchText = this.value.toLowerCase();
     for (const li of menuLinks.children) {
@@ -481,3 +386,26 @@ searchBox.addEventListener('input', function () {
         }
     }
 });
+
+toggle.addEventListener("click", () => {
+    sidebar.classList.toggle("close");
+})
+
+searchBtn.addEventListener("click", () => {
+    sidebar.classList.remove("close");
+})
+
+modeSwitch.addEventListener("click", () => {
+    body.classList.toggle("dark");
+
+    if (body.classList.contains("dark")) {
+        modeText.innerText = "Light mode";
+    } else {
+        modeText.innerText = "Dark mode";
+    }
+});
+
+function scrollToBottom() {
+    var chatConversationBoard = document.querySelector('#chat__conversation-board');
+    chatConversationBoard.scrollTop = chatConversationBoard.scrollHeight;
+}

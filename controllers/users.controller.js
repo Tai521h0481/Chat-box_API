@@ -9,12 +9,13 @@ const register = async (req, res) => {
     let {id, name, email, password, avatar } = req.body;
     const hashPassword = bcrypt.hashSync(password, 10);
     try {
+        let user = null;
         if(!avatar || !id) {
             avatar = gravatar.url(email, { s: '100', r: 'x', d: 'retro' }, true);
-            const user = await User.create({ name, email, password: hashPassword, avatar, follower: Math.floor(Math.random() * 1000), liked: Math.floor(Math.random() * 1000), disliked: Math.floor(Math.random() * 1000) });
+            user = await User.create({ name, email, password: hashPassword, avatar, follower: Math.floor(Math.random() * 1000), liked: Math.floor(Math.random() * 1000), disliked: Math.floor(Math.random() * 1000) });
         }
         else {
-            const user = await User.create({id, name, email, password: hashPassword, avatar, follower: Math.floor(Math.random() * 1000), liked: Math.floor(Math.random() * 1000), disliked: Math.floor(Math.random() * 1000) });
+            user = await User.create({id, name, email, password: hashPassword, avatar, follower: Math.floor(Math.random() * 1000), liked: Math.floor(Math.random() * 1000), disliked: Math.floor(Math.random() * 1000) });
         }
         res.status(201).json({ user });
     }
@@ -76,24 +77,40 @@ const upLoadAvatar = async (req, res) => {
 }
 
 const logout_removeCookie = (req, res) => {
-    res.clearCookie('token');
-    res.status(200).json({ message: "Logout successfully" });
+    try {
+        res.clearCookie('token');
+        res.status(200).json({ message: "Logout successfully" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 }
 
 const getAllUsers = async (req, res) => {
-    const id = req.params.id || req.body.id || req.query.id;
-    const users = await User.findAll({where: {roomId:id}});
-    res.status(200).json(users);
+    try {
+        const id = req.params.id || req.body.id || req.query.id;
+        const users = await User.findAll({where: {roomId:id}});
+        res.status(200).json(users);
+    } catch (error) {
+        res.status(500).json({error: error.message});   
+    }
 }
 
 const getUserByRoom = async (id) => {
-    const query = "SELECT u.name, u.avatar, u.id FROM users u JOIN rooms r ON u.roomId = r.id WHERE r.roomNumber = " + id;
-    const users = await User.sequelize.query(query, { type: User.sequelize.QueryTypes.SELECT });
-    return users;
+    try {
+        const query = "SELECT u.name, u.avatar, u.id FROM users u JOIN rooms r ON u.roomId = r.id WHERE r.roomNumber = " + id;
+        const users = await User.sequelize.query(query, { type: User.sequelize.QueryTypes.SELECT });
+        return users;
+    } catch (error) {
+        console.log(error);
+    }
 }
 
 const outRoom = async (id) => {
-    await User.update({roomId: null}, {where: {id}});
+    try {
+        await User.update({roomId: null}, {where: {id}});
+    } catch (error) {
+        console.log(error);
+    }
 }
 
 const updateLikeDislikeFollow = async (req, res) => {

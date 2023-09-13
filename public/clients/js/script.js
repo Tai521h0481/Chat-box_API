@@ -8,23 +8,21 @@ document.getElementById("login-form").addEventListener("submit", function (e) {
 
 document
   .getElementById("register-form")
-  .addEventListener("submit", function (e) {
+  .addEventListener("submit", async function (e) {
     e.preventDefault();
     const name = document.getElementById("regname").value;
     const email = document.getElementById("regemail").value;
     const password = document.getElementById("regpass").value;
-    fetch("http://localhost:3000/api/users/register", {
+    await fetch("http://localhost:3000/api/users/register", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ name, email, password }),
     })
-      .then((res) => {
-        return res.json().then((data) => ({ data, res }));
-      })
-      .then(({ data, res }) => {
-        if ((data && data.error) || !res.ok) {
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
           swal({
             title: "Error!",
             text: data.error,
@@ -88,14 +86,14 @@ const hashCode = (s) => {
 };
 
 window.onload = () => {
-  Clerk.load().then(() => {
+  Clerk.load().then(async () => {
     if (Clerk.user) {
       const email = Clerk.user.primaryEmailAddress.emailAddress;
       const id = hashCode(email);
       const name = Clerk.user.username;
       const password = 'secretKey1234';
       const avatar = Clerk.user.profileImageUrl;
-      fetchAPI("http://localhost:3000/api/users/register", "POST", {id, name, email, password, avatar })
+      await fetchAPI("http://localhost:3000/api/users/register", "POST", {id, name, email, password, avatar })
       logInFunction(email, password);
     }
   });
