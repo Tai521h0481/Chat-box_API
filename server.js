@@ -7,7 +7,6 @@ const io = require('socket.io')(server);
 const rootRouter = require('./routers');
 const cookieParser = require('cookie-parser');
 const { checkAuth, checkAuthAPI } = require('./authenticate/authentication');
-const { emit } = require('process');
 const {getUserByRoom, outRoom} = require('./controllers/users.controller');
 app.use(express.json());
 const staticPath = path.join(__dirname, 'public');
