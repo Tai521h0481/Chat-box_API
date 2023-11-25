@@ -25,7 +25,7 @@ window.onload = async () => {
 const displayProfile = async () => {
     const data = await fetchAPI("http://localhost:3000/api/authentication", "GET");
     data_user = data;
-    const user = await fetchAPI(`http://localhost:3000/api/users/${data.id}`, "GET");
+    const user = await fetchAPI(`http://localhost:3000/api/users/${data._id}`, "GET");
     const nameText = document.getElementById("name-text");
     const avt = document.getElementById("avatar-image");
     const follower = document.getElementById("follower");
@@ -48,7 +48,7 @@ const updateAvatar = async (event) => {
     reader.onload = async function (e) {
         const formData = new FormData();
         formData.append('avatar', file);
-        fetch(`http://localhost:3000/api/users/upload-avatar/${data_user.id}`, {
+        fetch(`http://localhost:3000/api/users/upload-avatar/${data_user._id}`, {
             method: 'POST',
             body: formData
         }).then(res => res.json())
@@ -94,7 +94,7 @@ const saveName = async () => {
     nameText.classList.remove("d-none");
     nameInput.classList.add("d-none");
     btnSave.classList.add("d-none");
-    fetchAPI(`http://localhost:3000/api/users/${data_user.id}`, "PUT", { name: nameInput.value, id: data_user.id })
+    fetchAPI(`http://localhost:3000/api/users/${data_user._id}`, "PUT", { name: nameInput.value })
         .then((data) => {
             if (data && data.error) {
                 swal({

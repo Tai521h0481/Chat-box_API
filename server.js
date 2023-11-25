@@ -2,6 +2,9 @@ const express = require('express');
 const app = express();
 const port = 3000;
 const path = require('path');
+require('dotenv').config();
+const cors = require('cors');
+const mongoose = require('mongoose');
 const server = require('http').createServer(app);
 const io = require('socket.io')(server);
 const rootRouter = require('./routers');
@@ -52,6 +55,12 @@ io.on('connection', (socket) => {
         });
     });
 });
+
+const {MONGO_URL} = process.env;
+
+mongoose.connect(MONGO_URL)
+  .then(() => console.log('Connect to mongoDB successfully'))
+  .catch(err => console.error('Could not connect to MongoDB', err));
 
 server.listen(port, () => {
     console.log(`Example app listening at http://localhost:${port}`);

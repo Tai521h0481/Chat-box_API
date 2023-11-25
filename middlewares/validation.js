@@ -18,7 +18,7 @@ const validateInput = (requiredFields) => (req, res, next) => {
 const isCreated = (Model) => async (req, res, next) => {
     const { email } = req.body;
     try {
-        const user = await Model.findOne({ where: { email } });
+        const user = await Model.findOne({ email });
         if (user) {
             res.status(409).json({ error: "User already exists" });
         } else {
@@ -32,7 +32,7 @@ const isCreated = (Model) => async (req, res, next) => {
 const checkId = (Model) => async (req, res, next) => {
     const id = req.params.id || req.body.id || req.query.id;
     if (id) {
-        const model = await Model.findOne({ where: { id } });
+        const model = await Model.findById(id);
         if (model) {
             return next();
         } else {
@@ -44,7 +44,7 @@ const checkId = (Model) => async (req, res, next) => {
 const checkVariable = (Model, variableName) => async (req, res, next) => {
     const val = req.params[variableName] || req.body[variableName] || req.query[variableName];
     if (val) {
-        const model = await Model.findOne({ where: { [variableName]: val } });
+        const model = await Model.findOne({  [variableName]: val } );
         if (!model) {
             return next();
         }
@@ -56,7 +56,7 @@ const checkVariable = (Model, variableName) => async (req, res, next) => {
 
 const isExistRoom = (Model) => async (req, res, next) => {
     const room = req.body.room || req.query.room || req.params.room;
-    const roomExist = await Model.findOne({ where: { roomNumber: room } });
+    const roomExist = await Model.findOne({  roomNumber: room } );
     if (!roomExist) {
         next();
     }

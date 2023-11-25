@@ -81,7 +81,7 @@ const setRoom = async () => {
 window.onload = async () => {
     await setRoom();
     await getAllMessageByIdRoom();
-    socket.emit("set-socketId", { idUser: currentUser.id });
+    socket.emit("set-socketId", { idUser: currentUser._id });
     socket.emit("get-all-user-in-room");
 };
 
@@ -100,14 +100,14 @@ socket.on("user_disconnect", async (allUsersInRoom) => {
 })
 
 socket.on("send-message", async ({ message, infoUser }) => {
-    isLeft = infoUser.id !== currentUser.id;
+    isLeft = infoUser.id !== currentUser._id;
     const date = createDate();
     chat(infoUser.avatar, infoUser.name, message, isLeft, date);
 });
 
 socket.on("send-location", async ({ lat, lng, infoUser }) => {
     const linkLocation = `https://www.google.com/maps?q=${lat},${lng}`;
-    isLeft = infoUser.id !== currentUser.id;
+    isLeft = infoUser.id !== currentUser._id;
     const date = createDate();
     chat(infoUser.avatar, infoUser.name, linkLocation, isLeft, date);
 });
@@ -119,8 +119,8 @@ document
         const message = document.getElementById("content-message").value;
         if (message === "") return;
         const date = createDate();
-        await saveMessage(message, currentUser.id, currentUser.roomId, date);
-        socket.emit("send-message", { message, infoUser: { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar } });
+        await saveMessage(message, currentUser._id, currentUser.roomId, date);
+        socket.emit("send-message", { message, infoUser: { id: currentUser._id, name: currentUser.name, avatar: currentUser.avatar } });
         document.getElementById("content-message").value = "";
     });
 
@@ -132,8 +132,8 @@ document.getElementById("btn-location").addEventListener("click", async function
             const lng = position.coords.longitude;
             const message = `https://www.google.com/maps?q=${lat},${lng}`;
             const date = createDate();
-            await saveMessage(message, currentUser.id, currentUser.roomId, date);
-            socket.emit("send-location", { lat, lng, infoUser: { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar } });
+            await saveMessage(message, currentUser._id, currentUser.roomId, date);
+            socket.emit("send-location", { lat, lng, infoUser: { id: currentUser._id, name: currentUser.name, avatar: currentUser.avatar } });
         });
     } else {
         swal({
@@ -149,7 +149,7 @@ const displayUserInRoom = async (allUsersInRoom) => {
     let ul = document.querySelector('.menu-links');
     let s = "";
     allUsersInRoom.forEach((data) => {
-        s += `<li class="nav-link view-profile" data-user-view="${currentUser.id}" data-user-id="${data.id}">
+        s += `<li class="nav-link view-profile" data-user-view="${currentUser._id}" data-user-id="${data.id}">
                 <a href="#">
                     <img class='bx icon' src="${data.avatar}" alt="">
                     <span class="text nav-text">${data.name}</span>
@@ -179,7 +179,7 @@ const getAllMessageByIdRoom = async () => {
             const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
             const month = (date.getMonth() + 1).toString().padStart(2, '0');
             const dateMessage = `${date.getFullYear()}-${month}-${date.getDate()} ${time}`;
-            chat(m.avatar, m.name, m.message, m.id !== currentUser.id, dateMessage);
+            chat(m.avatar, m.name, m.message, m.id !== currentUser._id, dateMessage);
         });
     });
 }
